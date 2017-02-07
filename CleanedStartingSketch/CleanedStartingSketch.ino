@@ -149,10 +149,14 @@ void loop ()
   lcd.setCursor(0, 1);
   lcd.write("Temp:");
   temp = temp_sensor_two.getTempCByIndex(0); //store temperature reading
+  Serial.print("Temp 1: ");Serial.println(temp);
   lcd.print(temp,2);
   temp = temp_sensor_two.getTempCByIndex(0); //store temperature reading
   lcd.write("_");
   lcd.print(temp,2);
+  Serial.print("Temp 2: ");Serial.println(temp);
+
+
   
 
 //  switch (current_step) {
