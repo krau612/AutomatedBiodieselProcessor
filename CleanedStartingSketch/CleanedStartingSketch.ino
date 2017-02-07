@@ -101,7 +101,17 @@ char input[2] = {'x', 'x'};
 int input_idx = 0;
 // END GLOBAL VARIABLES
 
+// Keep track of temp
 float temp;
+
+// time keeping variables
+unsigned long millisElps;
+unsigned long secondsElps;
+
+int hoursElps;
+int secRem;
+int runMins;
+int runSecs;
 
 void setup ()
 {
@@ -140,9 +150,19 @@ void setup ()
 
 void loop ()
 {
+  millisElps = millis();
+  secondsElps = millis()/1000;
+
+  hoursElps = secondsElps/3600;
+  secRem = secondsElps%3600;
+  runMins = secRem/60;
+  runSecs = secRem%60;
+  
   lcd.setCursor(0, 0); //set curser to top left
   lcd.print ("Normal mode");
   //char key = keypad.getKey(); //Scans for pressed key
+  
+  Serial.print("Runtime: ");Serial.print(runMins);Serial.print( " : ");Serial.println(runSecs);
   
   temp_sensor_one.requestTemperatures(); // Send the command to get temperatures
   temp_sensor_two.requestTemperatures();
