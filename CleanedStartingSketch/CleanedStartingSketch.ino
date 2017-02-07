@@ -1,356 +1,404 @@
-#include <LiquidCrystal_I2C.h>
+// LIBRARY IMPORTS
+#include "Adafruit_TCS34725.h"
 #include <DallasTemperature.h>
-#include <OneWire.h>
 #include <Keypad.h>
-#include <Wire.h>
 #include <LiquidCrystal.h>
-
-/*
- This sketch incorperates a constant temperature reading 
- by a onewire Temperature probe during the "normal" running state
- and then goes into manual override mode when the override button
- is pressed. The override button is *. Manual override lets the 
- user press a button on the keypad to toggle the corresponding
- relay.
- 
- 
- Important notes
- -The code never stops looping even the arduino is waiting for a key
- to be pressed. In order to achieve this, use while loops that only end
- when the desired action in complete. Try to avoid delay functions, and 
- yes I know there are still some being used
- */
-
-const int ONE_WIRE_BUS = 53;  // Data wire is plugged into 53 on the Arduino
-const int BACKLIGHT_PIN = 13; // Backlight plugged into 13 on the Arduino
+#include <LiquidCrystal_I2C.h>
+#include <NewPing.h>
+#include <OneWire.h>
+#include <Wire.h>
+// END LIBRARY IMPORTS
 
 
-// Assign the relay pins
-const int RELAY_1 = 31;
-const int RELAY_2 = 33;
-const int RELAY_3 = 35;
-const int RELAY_4 = 37;
-const int RELAY_5 = 39;
-const int RELAY_6 = 41;
-const int RELAY_7 = 43;
-const int RELAY_8 = 45;
+// CONSTANTS
+const int POWER_ON_TIME = millis();
 
-// Pin 13 for test led
-// blinks each cycle of the loop
-const int TEST_LED = 13;
+const int LEVEL_SENSOR_MAX_DIST = 100;
 
-// Keypad constants
-const byte ROWS = 4;
-const byte COLS = 4;
-byte ROW_PINS[ROWS] = { 
-  9, 8, 7, 6 };
-byte COL_PINS[COLS] = { 
-  5, 4, 3, 2 };
-const char keymap[ROWS][COLS] = {
-  { 
-    '1', '2', '3', 'A'}
-  ,
-  { 
-    '4', '5', '6', 'B'}
-  ,
-  { 
-    '7', '8', '9', 'C'}
-  ,
-  { 
-    '*', '0', '#', 'D'}
+const int KEYPAD_ROWS = 4;
+const int KEYPAD_COLS = 4;
+
+char KEYS[KEYPAD_ROWS][KEYPAD_COLS] = {
+  { '1', '2', '3', 'A' },
+  { '4', '5', '6', 'B' },
+  { '7', '8', '9', 'C' },
+  { '*', '0', '#', 'D' }
 };
+// END CONSTANTS
 
 
-int relayNum;  // Currently selected relay number
-int serialNum; // Most recently pressed key on keypad
-char serialOC; // State of the selected relay (o for open, c for closed)
-bool ovMode;   // State of override mode (false for normal mode, true for override mode)
-float temp;    // Recorded temperature
+// PIN CONSTANTS
+const int LEVEL_SENSOR_ONE_ECHO_PIN = 10;
+const int LEVEL_SENSOR_ONE_TRIG_PIN = 11;
+const int LEVEL_SENSOR_TWO_ECHO_PIN = 12;
+const int LEVEL_SENSOR_TWO_TRIG_PIN = 13;
+
+const int TEMP_SENSOR_ONE_PIN = 52;
+const int TEMP_SENSOR_TWO_PIN = 53;
+
+const int SDA_PIN = 20;
+const int SCL_PIN = 21;
+
+const int RELAY_ONE_PIN   = 22; //Washer Dryer Pump
+const int RELAY_TWO_PIN   = 24; //Reaction Chamber Pump
+const int RELAY_THREE_PIN = 26; //Washer Dryer Heating Element  
+const int RELAY_FOUR_PIN  = 28; //Reaction Chamber Heating Element
+
+const int VALVE_ONE_PIN   = 31; //Drain for Washer Dryer
+const int VALVE_TWO_PIN   = 33; //Fills the reactor
+const int VALVE_THREE_PIN = 35; //Drain for the Reactor
+const int VALVE_FOUR_PIN  = 37; //Drain from Reactor to the W/D
+const int VALVE_FIVE_PIN  = 39; //Drain Waster from W/D (Color Sensor)
+const int VALVE_SIX_PIN   = -1; //TBH
+const int VALVE_SEVEN_PIN = 43; //Feeds methoxide from carboy to Reactor
+const int VALVE_EIGHT_PIN = 45; //Feeds water from carboy to mister ontop of W/D
+
+byte KEYPAD_ROW_PINS[KEYPAD_ROWS]  = { 9, 8, 7, 6 };
+byte KEYPAD_COL_PINS[KEYPAD_COLS]  = { 5, 4, 3, 2 };
+// END PIN CONSTANTS
 
 
-// Setup a oneWire instance to communicate with any OneWire device
-// not just Maxim/Dallas temperature ICs
-OneWire oneWire(ONE_WIRE_BUS);
+// SENSOR DECLARATIONS
+Adafruit_TCS34725 color_sensor = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
 
-// Pass oneWire reference to Dallas Temperature
-DallasTemperature sensors(&oneWire);
+OneWire temp_sensor_one_onewire(TEMP_SENSOR_ONE_PIN);
+OneWire temp_sensor_two_onewire(TEMP_SENSOR_TWO_PIN);
+DallasTemperature temp_sensor_one(&temp_sensor_one_onewire);
+DallasTemperature temp_sensor_two(&temp_sensor_two_onewire);
 
-// Initalize keypad
-Keypad keypad(makeKeymap(keymap), ROW_PINS, COL_PINS, ROWS, COLS);
+//NewPing level_sensor_one(LEVEL_SENSOR_ONE_TRIG_PIN, LEVEL_SENSOR_ONE_ECHO_PIN, LEVEL_SENSOR_MAX_DIST);
+//NewPing level_sensor_two(LEVEL_SENSOR_TWO_TRIG_PIN, LEVEL_SENSOR_TWO_ECHO_PIN, LEVEL_SENSOR_MAX_DIST);
 
-// Initialize LCD and set the LCD I2C Address
-LiquidCrystal_I2C lcd(0x3f, 2, 1, 0, 4, 5, 6, 7, 8, POSITIVE);
+LiquidCrystal_I2C lcd(0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
+Keypad keypad(makeKeymap(KEYS), KEYPAD_ROW_PINS, KEYPAD_COL_PINS, KEYPAD_ROWS, KEYPAD_COLS);
+// END SENSOR DECLARATIONS
 
+// GLOBAL VARIABLES
+// 0: no input received yet
+// 1: select pin
+// 2: select high or low
+int input_state = 0;
 
-void setup () {
-  // Initialize serial connection
+// 0: auto mode
+// 1: override mode
+// 2: jump to step
+int operation_mode = 0;
+
+int current_step = 1;
+
+// =1 if the default lcd display
+// needs to be overwritten to show
+// error or other info
+int lcd_interrupt = 0;
+
+// only 3 because at most we need
+// a two digit number for either
+// step numbers or pin numbers
+char input[2] = {'x', 'x'};
+
+// which digit we are inputting next
+int input_idx = 0;
+// END GLOBAL VARIABLES
+
+float temp;
+
+void setup ()
+{
   Serial.begin(9600);
-  sensors.begin();
-
-  // Set all relay pins to high because high = open
-  for (int i = 31; i <= 45; i += 2) {
-    pinMode(i, OUTPUT);
-    digitalWrite(i, HIGH);
-  }
-
-  // Turn on LCD
-  pinMode(BACKLIGHT_PIN, OUTPUT);
-  digitalWrite(BACKLIGHT_PIN, HIGH);
+  
+  // End Keypad Initialization
+  pinMode(RELAY_ONE_PIN,   OUTPUT);
+  pinMode(RELAY_TWO_PIN,   OUTPUT);
+  pinMode(RELAY_THREE_PIN, OUTPUT);
+  pinMode(RELAY_FOUR_PIN,  OUTPUT);
+  pinMode(VALVE_ONE_PIN,   OUTPUT);
+  pinMode(VALVE_TWO_PIN,   OUTPUT);
+  pinMode(VALVE_THREE_PIN, OUTPUT);
+  pinMode(VALVE_FOUR_PIN,  OUTPUT);
+  pinMode(VALVE_FIVE_PIN,  OUTPUT);
+  pinMode(VALVE_SIX_PIN,   OUTPUT);
+  pinMode(VALVE_SEVEN_PIN, OUTPUT);
+  pinMode(VALVE_EIGHT_PIN, OUTPUT);
+  
+  // Start LCD
   lcd.begin(16, 2);
-  keypad.addEventListener(keypadEvent);
-  Serial.println("Standby");
   lcd.home();
   lcd.print("Initialized");
-  delay(1000);
-  lcd.clear();
+  
+  // Add interrupt to keypad
+  //keypad.addEventListener(keypadEvent);
+  
+  // Start Temperature Sensors
+  temp_sensor_one.begin();
+  temp_sensor_two.begin();
+  
+  // Start Level Sensors
+ // level_sensor_one.begin();
+  //level_sensor_two.begin();
 }
 
-void loop () {
-  // Set cursor to top left
-  lcd.setCursor(0, 0);
-  lcd.print("Normal Mode");
-
-  // Scans for pressed key
-  char key = keypad.getKey();
-
-  // Update temperatures and display them
-  sensors.requestTemperatures();
+void loop ()
+{
+  lcd.setCursor(0, 0); //set curser to top left
+  lcd.print ("Normal mode");
+  //char key = keypad.getKey(); //Scans for pressed key
+  
+  temp_sensor_one.requestTemperatures(); // Send the command to get temperatures
+  temp_sensor_two.requestTemperatures();
   lcd.setCursor(0, 1);
-  lcd.print("Temp: ");
-  temp = sensors.getTempCByIndex(0);
-  lcd.print(temp, 2);
+  lcd.write("Temp:");
+  temp = temp_sensor_two.getTempCByIndex(0); //store temperature reading
+  lcd.print(temp,2);
+  temp = temp_sensor_two.getTempCByIndex(0); //store temperature reading
+  lcd.write("_");
+  lcd.print(temp,2);
+  
 
-  // Blink the test led
-  digitalWrite(TEST_LED, HIGH);
-  delay(50);
-  digitalWrite(TEST_LED, LOW);
+//  switch (current_step) {
+//    case 1:
+//      TransferToReactor();
+//      break;
+//    case 2:
+//      break;
+//    case 3:
+//      break;
+//    case 4:
+//      break;
+//    case 5:
+//      break;
+//    default:
+//      // error i guess
+//      break;
+//  }
+//  
+//  // Update Sensors
+//  
+//  // Error Checks
+//  
+//  // Update LCD
+//  if (lcd_interrupt == 0)
+//  {
+//    lcd.clear();
+//    lcd.home();
+//    lcd.print("Default Stuff");
+//  }
 }
 
-/*
- This function is called whenever a key is pressed.
- Note: this function will stop the main loop code
- until it is complete.
- */
-void keypadEvent (KeypadEvent key) {
-  if (keypad.getState() == PRESSED) {
-    switch (key) {
-    case '*':
-      lcd.clear();
-      ovMode = true;
-      Serial.print(ovMode);
-      lcd.print("Override Mode");
-      delay(1000);
+//void keypadEvent (KeypadEvent key)
+//{
+////  switch (keypad.getState()) {
+//    case RELEASE:
+//      // auto mode doesn't take inputs
+//      if (operation_mode == 0)
+//        break;
+//      
+//      lcd_interrupt = 1;
+//      lcd.clear();
+//      lcd.home();
+//      
+//      if (operation_mode == 1)
+//      {
+//        lcd.print("Choose a Pin. Press # when done.");
+//        lcd.setCursor(0,2);
+//      }
+//      else if (operation_mode == 2)
+//      {
+//        lcd.print("Choose a Step. Press # when done.");
+//        lcd.setCursor(0,2);
+//      }
+//    
+//      if (key == '1')
+//        input[input_idx] = '1';
+//        
+//      else if (key == '2')
+//        input[input_idx] = '2';
+//        
+//      else if (key == '3')
+//        input[input_idx] = '3';
+//        
+//      else if (key == '4')
+//        input[input_idx] = '4';
+//        
+//      else if (key == '5')
+//        input[input_idx] = '5';
+//        
+//      else if (key == '6')
+//        input[input_idx] = '6';
+//        
+//      else if (key == '7')
+//        input[input_idx] = '7';
+//        
+//      else if (key == '8')
+//        input[input_idx] = '8';
+//        
+//      else if (key == '9')
+//        input[input_idx] = '9';
+//        
+//      else if (key == '0')
+//        input[input_idx] = '0';
+//        
+//      else if (key == 'A')
+//        input[input_idx] = 'A';
+//        
+//      else if (key == 'B')
+//        input[input_idx] = 'B';
+//        
+//      else if (key == 'C')
+//        input[input_idx] = 'C';
+//        
+//      else if (key == 'D')
+//        input[input_idx] = 'D';
+//        
+//      else if (key == '*')
+//        input[input_idx] = '*';
+//        
+//      else if (key == '#')
+//      
+//      if (input_idx == 1)
+//      {
+//        if (operation_mode == 1)
+//          // turn on/off pin
+//        else if (operation_mode == 2)
+//          // change operation step
+//      }
+//      else
+//      {
+//        input_idx++;
+//      }
+//      
+//      break;
+//    case HOLD:
+//      if (key == 'A')
+//      {
+//        // switch to auto mode
+//        operation_mode = 0;
+//      }
+//      else if (key == 'B')
+//      {
+//        // switch to override mode
+//        operation_mode = 1;
+//      }
+//      else if (key == 'C')
+//      {
+//        // switch to jump to step mode
+//        operation_mode = 2;
+//      }
+//      
+//      input_idx = 0;
+//      break;
+//  }
+//}
 
-      while (ovMode) {
-        relayfunc();
-      }
-
-      break;
-    case '#':
-      lcd.clear();
-      ovMode = false;
-      lcd.print("Normal Mode");
-      delay(1000);
-      break;
-    default:
-      break;
-    }
-  } 
-  else {
-  }
+void getTemp ()
+{
+  temp_sensor_one.requestTemperatures();
+  temp_sensor_two.requestTemperatures();
+  
+  int temp_one = temp_sensor_one.getTempCByIndex(0);
+  int temp_two = temp_sensor_two.getTempCByIndex(0);
 }
 
-void relayfunc () {
-  lcd.clear();
-  lcd.print("Relay Num?: ");
-  boolean noKey = true;
+//void getLevel ()
+//{
+//  unsigned int uS_one = level_sensor_one.ping();
+//  unsigned int uS_two = level_sensor_one.ping();
+//
+//  int level_one = uS_one / US_ROUNDTRIP_CM;
+//  int level_two = uS_two / US_ROUNDTRIP_CM;
+//}
 
-  // Loop until relay number is chosen
-  while (noKey && ovMode) {
-    int key = keypad.getKey();
-    if ((key > 0) && (key < 19)) {
-      serialNum = key;
-      lcd.print(serialNum);
-      lcd.setCursor(0, 1);
-      noKey = false;
-    }
-  }
-
-
-  lcd.print("Open or Close?: ");
-  noKey = true;
-
-  // Loop until choice is made to open/close
-  while (noKey && ovMode) {
-    char key = keypad.getKey();
-    if ((key == 'A') || (key == 'B')) {
-      serialOC = key;
-      lcd.print(serialOC);
-      noKey = false;
-    }
-  }
-
-
-  // Match relay number to pin on arduino
-  switch (serialNum) {
-  case 1:
-    relayNum = RELAY_1;
-    break;
-  case 2:
-    relayNum = RELAY_2;
-    break;
-  case 3:
-    relayNum = RELAY_3;
-    break;
-  case 4:
-    relayNum = RELAY_4;
-    break;
-  case 5:
-    relayNum = RELAY_5;
-    break;
-  case 6:
-    relayNum = RELAY_6;
-    break;
-  case 7:
-    relayNum = RELAY_7;
-    break;
-  case 8:
-    relayNum = RELAY_8;
-    break;
-  }
-
-  lcd.clear();
-
-  // Open/Close the selected valve
-  if (serialOC == 'A' && ovMode) {
-    digitalWrite(relayNum, LOW);
-
-    lcd.print("Valve ");
-    lcd.setCursor(6, 0);
-    lcd.print(serialNum);
-    lcd.setCursor(8, 0);
-    lcd.print(" Opened");
-  } 
-  else if (serialOC == 'B' && ovMode) {
-    digitalWrite(relayNum, HIGH);
-
-    lcd.print("Valve ");
-    lcd.setCursor(6, 0);
-    lcd.print(serialNum);
-    lcd.setCursor(8, 0);
-    lcd.print(" Closed");
-  }
-
-  // Give time for valve to open/close
-  delay(1000);
+void getColor ()
+{
+  uint16_t r, g, b, c, color_temp, lux;
+  
+  color_sensor.getRawData(&r, &g, &b, &c);
+  color_temp = color_sensor.calculateColorTemperature(r, g, b);
+  lux = color_sensor.calculateLux(r, g, b);
 }
 
-// Grouping
-// Stage #
-// Description
-// I/O
-// End condition
 
-// WVO loading group
-void step1 () {
-  // load VWO through filter
-  // Everything turned off
-  // when loading is finished
-}
-// end WVO loading group
-
-// Prewash group
-void step2 () {
-  // heat oil
-  // turn on bubblers
-  // mist water into washer/drier
-}
-
-void step3 () {
-  // Keep bubblers running
-  // p3 on
-  // time
-}
-
-void step4 () {
-  // wait for wash water to settle
-  // everything turned off
-  // time
-}
-
-void step5 () {
-  // drain wash water
-  // v5 open
-  // until light sensor registers oil instead of water
-}
-
-void step6 () {
-  // dry VWO
-  // p2 on
-  // time
-}
-// end prewash group
-
-// Reaction group
-void step7 () {
-  // transfer VWO into reactor, attach carboy w/Methoxide, ball valve must be closed
-  // v1 open
-  // v3 close
-  // p1 on
-  // when liquid sensor detects no more oil in washer dryer
-}
-
-void step8 () {
-  // heat oil/methoxide
-  // reactor heat on
-  // until oil is about 50C
-}
-
-void step9 () {
-  // mix/reaction
-  // reactor heat on
-  // p1 on
-  // time
-}
-
-void step10 () {
-  // transfer BD/glycerol to washer dryer
-  // v2 close
-  // v4 open
-  // p1 on
-  // when liquid level sensor detects oil has return to washer dryer
-}
-// end reaction group
-
-// start BD Separation/water wash group
-void step11 () {
-  // drain glycerol
-  // v5 open
-  // until light sensor registers BD instead of oil
-}
-
-void step12 () {
-  step2();
-}
-
-void step13 () {
-  step3();
-}
-
-void step14 () {
-  step4();
-}
-
-void step15 () {
-  step5();
-}
-
-void step16 () {
-  step6();
-}
-
-void step17 () {
-  // pump out BD, turn washer dryer ball valve
-  // p2 on
-}
+////Transfer WVO to reactor step:7
+//void TransferToReactor()
+//{
+//  current_step = 1;
+//  digitalWrite(VALVE_THREE_PIN, LOW);
+//  digitalWrite(VALVE_ONE_PIN, HIGH);
+//  digitalWrite(VALVE_SEVEN_PIN, HIGH);
+//  digitalWrite(RELAY_TWO_PIN,HIGH);
+//  //decide how long the pump needs to be run, either delay or level sensor
+//  digitalWrite(RELAY_TWO_PIN,LOW);
+//  digitalWrite(VALVE_ONE_PIN, LOW);
+//}
+//
+////STEP EIGHT IN PSEUDOCODE DOC
+//void HeatReactor()
+//{
+//  current_step = 2;
+//  digitalWrite(RELAY_FOUR_PIN,HIGH);
+//  
+//  if(temp_one >= 50){   //Move to step 3 once temp is 50c
+//    current_step = 3;
+//  }
+//
+//}
+//
+//void Reaction()
+//{
+//  current_step = 3;
+//  digitalWrite(VALVE_THREE_PIN, HIGH);
+//  digitalWrite(RELAY_ONE_PIN, HIGH);
+//  digitalWrite(VALVE_TWO_PIN, HIGH);
+//  
+//  //need a delay to mix the methoxide and wvo
+//  
+//  digitalWrite(RELAY_ONE_PIN, LOW);
+//  digitalWrite(VALVE_THREE_PIN, LOW);
+//}
+//
+// //Pseudoecode step:10
+//void TransferToWD()
+//{
+//  digitalWrite(VALVE_TWO_PIN, LOW);
+//  digitalWrite(VALVE_FOUR_PIN, HIGH);
+//  digitalWrite(RELAY_ONE_PIN, HIGH);
+//  //need to decide how to leave pump on untill all of the liquid from the reactor has been pumped out
+//  digitalWrite(RELAY_ONE_PIN, LOW);
+//}
+//
+////Pseudocode step 11
+//void BDSeperation()
+//{
+//  digitalWrite(VALVE_FIVE_PIN, HIGH);
+//  //drian Glycerol untill the light sesor detects biodeisel. 
+//  digitalWrite(VALVE_FIVE_PIN, LOW);
+//}
+//
+////pseudocode step 12,13, & 14
+//void WashBD()
+//{
+//  digitalWrite(RELAY_THREE_PIN, HIGH);
+//  digitalWrite(VALVE_SIX_PIN, HIGH);
+//  digitalWrite(VALVE_EIGHT_PIN,HIGH); //feed misters
+//  //TURN ON BUBBLER
+//  //STOP WATER WHEN ENOUGH IS ADDED
+//  digitalWrite(VALVE_SIX_PIN, LOW);
+//  digitalWrite(VALVE_EIGHT_PIN,LOW); //close misters
+//  //WAIT FOR IT TO SETTLE
+//  
+//}
+////Pseudocode step 15
+//void WaterSeperation()
+//{
+//  digitalWrite(VALVE_FIVE_PIN, HIGH);
+//  //drian WATER untill the light sesor detects biodeisel. 
+//  digitalWrite(VALVE_FIVE_PIN, LOW);
+//}
+//
+////DRY BD STEP 16
+//void DryBD()
+//{
+//  digitalWrite(RELAY_TWO_PIN, HIGH);
+//  //time
+//  digitalWrite(RELAY_TWO_PIN, LOW);
+//}
