@@ -19,20 +19,22 @@ const int KEYPAD_ROWS = 4;
 const int KEYPAD_COLS = 4;
 
 
-
-
 char KEYS[KEYPAD_ROWS][KEYPAD_COLS] = {
-  { 
-    '1', '2', '3', 'A'   }
+  {
+    '1', '2', '3', 'A'
+  }
   ,
-  { 
-    '4', '5', '6', 'B'   }
+  {
+    '4', '5', '6', 'B'
+  }
   ,
-  { 
-    '7', '8', '9', 'C'   }
+  {
+    '7', '8', '9', 'C'
+  }
   ,
-  { 
-    '*', '0', '#', 'D'   }
+  {
+    '*', '0', '#', 'D'
+  }
 };
 // END CONSTANTS
 
@@ -50,7 +52,7 @@ const int SCL_PIN = 21;
 
 const int RELAY_ONE_PIN   = 22; //Washer Dryer Pump
 const int RELAY_TWO_PIN   = 24; //Reaction Chamber Pump
-const int RELAY_THREE_PIN = 26; //Washer Dryer Heating Element  
+const int RELAY_THREE_PIN = 26; //Washer Dryer Heating Element
 const int RELAY_FOUR_PIN  = 28; //Reaction Chamber Heating Element
 
 const int VALVE_ONE_PIN   = 31; //Drain for Washer Dryer
@@ -62,10 +64,12 @@ const int VALVE_SIX_PIN   = -1; //TBH
 const int VALVE_SEVEN_PIN = 43; //Feeds methoxide from carboy to Reactor
 const int VALVE_EIGHT_PIN = 45; //Feeds water from carboy to mister ontop of W/D
 
-byte KEYPAD_ROW_PINS[KEYPAD_ROWS]  = { 
-  9, 8, 7, 6 };
-byte KEYPAD_COL_PINS[KEYPAD_COLS]  = { 
-  5, 4, 3, 2 };
+byte KEYPAD_ROW_PINS[KEYPAD_ROWS]  = {
+  9, 8, 7, 6
+};
+byte KEYPAD_COL_PINS[KEYPAD_COLS]  = {
+  5, 4, 3, 2
+};
 // END PIN CONSTANTS
 
 
@@ -94,13 +98,22 @@ int STATE = 0;
 
 //STATES-------------------
 const int STANDBY = 0;
-//TODO: Our step constants 
-const int STEP1 = 1;
+//TODO: Our step constants
+const int TRANSFERTOREACTOR = 1;
+const int HEATREACTOR = 2;
+const int REACTION = 3;
+const int TRANSFERTOWD = 4;
+const int BDSEPERATION = 5;
+const int WASHBD = 6;
+const int WATERSEPERATION = 7;
+const int DRYBD = 8;
+
+
 //--------------------------
-const int ERRORCHK = 2;
-const int STOP = 3;
+const int ERRORCHK = -1;
+const int STOP = 9;
 
-
+int current_step = 0;
 // 0: auto mode
 // 1: override mode
 // 2: jump to step
@@ -117,7 +130,8 @@ int lcd_interrupt = 0;
 // a two digit number for either
 // step numbers or pin numbers
 char input[2] = {
-  'x', 'x'};
+  'x', 'x'
+};
 
 // which digit we are inputting next
 int input_idx = 0;
@@ -126,9 +140,6 @@ int input_idx = 0;
 boolean jumptostep = false;
 
 // END GLOBAL VARIABLES
-
-//TODO: Our step constants 
-const int STEP1 = 1;
 
 
 void setup ()
@@ -170,40 +181,65 @@ void setup ()
 
 }
 //This function only moves machine to different states
-void updateStateMachine(){
-  
-  switch(STATE){
-    case STANDBY :
-      if(jumptostate)
-        STATE = getStepState();
+void updateStateMachine() {
+
+  switch (STATE) {
+  case STANDBY :
+    if (jumptostep){
+      STATE = getStepState();
       jumptostep = false;
-      input_inx = 0;
+      input_idx = 0;
+    }
     break;
-    case STEP1:         // TODO: Add other step states
+  case TRANSFERTOREACTOR:         // TODO: Add other step states
     break;
-    case ERRORCHK:
+  case HEATREACTOR:
     break;
-    case STOP:
+  case REACTION:
     break;
-    default: 
+  case TRANSFERTOWD:
+    break;
+  case  BDSEPERATION:
+    break;
+  case ERRORCHK:
+    break;
+  case STOP:
+    break;
+  default:
+    break;
   }
 }
 //our loop does things depending on STATE
 void loop ()
 {
-  updateStateMachine();
   char key = keypad.getKey();
+  updateStateMachine();
   
-  switch(STATE){
-    case STANDBY :
+  switch (STATE) {
+  case STANDBY :
     break;
-    case STEP1:     //TODO: Add other step states
+  case TRANSFERTOREACTOR:         // TODO: Add other step states
+    TransferToReactor();    
     break;
-    case ERRORCHK:
+  case HEATREACTOR:
+    HeatReactor();
     break;
-    case STOP:
+  case REACTION:
+    Reaction();
     break;
-    default: 
+  case TRANSFERTOWD:
+    TransferToWD();
+    break;
+  case  BDSEPERATION:
+    BDSeperation();
+    break;
+  case ERRORCHK:
+    //need to 
+    break;
+  case STOP:
+    break;
+  default:
+    break;
   }
   if (lcd_interrupt == 0)
   {
@@ -212,16 +248,16 @@ void loop ()
     lcd.print("Default Stuff");
   }
 }
-int getStepState(){ // TODO: handle case error case of more than two inputs and auto
+int getStepState() { // TODO: handle case error case of more than two inputs and auto
   int step;
-  if(input_inx == 2)
-    step = input[0]*10 + input[1];
+  if (input_idx == 3)
+    step = (input[0] - '0') * 10 + input[1] - '0';// this line could fuck us for mulitiple steps
   else
-    step = input[0];
-    
-  return step;  
+    step = (input[0] - '0');//also janky af, might need another way to change char to int. 
+
+  return step;
 }
-void keypadEvent (KeypadEvent key)
+void keypadEvent (KeypadEvent key)// could be char key
 {
   switch (keypad.getState()) {
   case RELEASED:
@@ -236,13 +272,14 @@ void keypadEvent (KeypadEvent key)
     if (operation_mode == 1)
     {
       lcd.print("Choose a Pin. Press # when done.");
-      lcd.setCursor(0,2);
+      lcd.setCursor(0, 2);
     }
     else if (operation_mode == 2)
     {
       lcd.print("Choose a Step. Press # when done.");
-      lcd.setCursor(0,2);
+      lcd.setCursor(0, 2);
     }
+
 
     if (key == '1')
       input[input_idx] = '1';
@@ -289,22 +326,22 @@ void keypadEvent (KeypadEvent key)
     else if (key == '*')
       input[input_idx] = '*';
 
-    else if (key == '#')
-
+    else if (key == '#'){
       if (input_idx == 1)
       {
         if (operation_mode == 1){}
-          // turn on/off pin
-       else if (operation_mode == 2){
+        // turn on/off pin// shutdown everything?
+        else if (operation_mode == 2) {
           jumptostep = true;
         }
-          // change operation step
-        }
-      else
-      {
-        input_idx++;
       }
-
+      else{
+        lcd.print("Yo enter a number");
+        input_idx = 0;
+        
+      }
+    }
+    input_idx++;
     break;
   case HOLD:
     if (key == 'A')
@@ -335,14 +372,14 @@ int getTemp (int sensor)
 
   int temp_one = temp_sensor_one.getTempCByIndex(0);
   int temp_two = temp_sensor_two.getTempCByIndex(0);
-  
-  if(sensor == 1){
+
+  if (sensor == 1) {
     return temp_one;
   }
-  else{
-      return temp_two;
+  else {
+    return temp_two;
   }
-  
+
 }
 
 void getLevel ()
@@ -371,19 +408,19 @@ void TransferToReactor()
   digitalWrite(VALVE_THREE_PIN, LOW);
   digitalWrite(VALVE_ONE_PIN, HIGH);
   digitalWrite(VALVE_SEVEN_PIN, HIGH);
-  digitalWrite(RELAY_TWO_PIN,HIGH);
+  digitalWrite(RELAY_TWO_PIN, HIGH);
   //decide how long the pump needs to be run, either delay or level sensor
-  digitalWrite(RELAY_TWO_PIN,LOW);
+  digitalWrite(RELAY_TWO_PIN, LOW);
   digitalWrite(VALVE_ONE_PIN, LOW);
 }
 
 //STEP EIGHT IN PSEUDOCODE DOC
 void HeatReactor()
 {
-  current_step = 2;
-  digitalWrite(RELAY_FOUR_PIN,HIGH);
-   
-  if(getTemp(1) >= 50){   //Move to step 3 once temp is 50c
+  
+  digitalWrite(RELAY_FOUR_PIN, HIGH);
+
+  if (getTemp(1) >= 50) { //Move to step 3 once temp is 50c
     current_step = 3;
   }
 
@@ -391,7 +428,7 @@ void HeatReactor()
 
 void Reaction()
 {
-  current_step = 3;
+  
   digitalWrite(VALVE_THREE_PIN, HIGH);
   digitalWrite(RELAY_ONE_PIN, HIGH);
   digitalWrite(VALVE_TWO_PIN, HIGH);
@@ -416,7 +453,7 @@ void TransferToWD()
 void BDSeperation()
 {
   digitalWrite(VALVE_FIVE_PIN, HIGH);
-  //drian Glycerol untill the light sesor detects biodeisel. 
+  //drian Glycerol untill the light sesor detects biodeisel.
   digitalWrite(VALVE_FIVE_PIN, LOW);
 }
 
@@ -425,11 +462,11 @@ void WashBD()
 {
   digitalWrite(RELAY_THREE_PIN, HIGH);
   digitalWrite(VALVE_SIX_PIN, HIGH);
-  digitalWrite(VALVE_EIGHT_PIN,HIGH); //feed misters
+  digitalWrite(VALVE_EIGHT_PIN, HIGH); //feed misters
   //TURN ON BUBBLER
   //STOP WATER WHEN ENOUGH IS ADDED
   digitalWrite(VALVE_SIX_PIN, LOW);
-  digitalWrite(VALVE_EIGHT_PIN,LOW); //close misters
+  digitalWrite(VALVE_EIGHT_PIN, LOW); //close misters
   //WAIT FOR IT TO SETTLE
 
 }
@@ -437,7 +474,7 @@ void WashBD()
 void WaterSeperation()
 {
   digitalWrite(VALVE_FIVE_PIN, HIGH);
-  //drian WATER untill the light sesor detects biodeisel. 
+  //drian WATER untill the light sesor detects biodeisel.
   digitalWrite(VALVE_FIVE_PIN, LOW);
 }
 
