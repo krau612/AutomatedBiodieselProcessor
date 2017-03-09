@@ -18,7 +18,6 @@ const int LEVEL_SENSOR_MAX_DIST = 100;
 const int KEYPAD_ROWS = 4;
 const int KEYPAD_COLS = 4;
 
-
 char KEYS[KEYPAD_ROWS][KEYPAD_COLS] = {
   {
     '1', '2', '3', 'A'
@@ -182,7 +181,7 @@ void setup ()
 }
 //This function only moves machine to different states
 void updateStateMachine() {
-Serial.print("entered updateStateMachine");
+//Serial.print("entered updateStateMachine");
   switch (STATE) {
   case STANDBY :
     if (jumptostep){
@@ -190,20 +189,6 @@ Serial.print("entered updateStateMachine");
       jumptostep = false;
       input_idx = 0;
     }
-    break;
-  case TRANSFERTOREACTOR:         // TODO: Add other step states
-    break;
-  case HEATREACTOR:
-    break;
-  case REACTION:
-    break;
-  case TRANSFERTOWD:
-    break;
-  case  BDSEPERATION:
-    break;
-  case ERRORCHK:
-    break;
-  case STOP:
     break;
   default:
     break;
@@ -213,6 +198,10 @@ Serial.print("entered updateStateMachine");
 void loop ()
 {
   char key = keypad.getKey();
+  if (key) {
+    Serial.println(key);
+  }
+
   updateStateMachine();
 
   switch (STATE) {
@@ -282,6 +271,7 @@ void keypadEvent (KeypadEvent key)// could be char key
       lcd.setCursor(0, 2);
     }
 
+    Serial.print("the key is " + key);
 
     if (key == '1')
       input[input_idx] = '1';
@@ -340,7 +330,7 @@ void keypadEvent (KeypadEvent key)// could be char key
       }
       else if(input_idx == 0){
         lcd.print("Yo enter a number");
-        input_idx = 0;
+        keypadEvent (KeypadEvent key)
       }
       else{
         lcd.print("too many numbers entered");
@@ -411,6 +401,11 @@ void DryOil(){
   // turn on hearting element of washer dryer
   // once at 30C turn on pump to circulate
   digitalWrite(RELAY_ONE_PIN,HIGH);//turn on the heating element for the washer/dryer.
+  while(getTemp(1) < 30){
+    lcd.print(getTemp(1));
+  }
+    lcd.clear();
+    lcd.home();
   while(getTemp(1) > 30){
     //turn on pump
     digitalWrite(RELAY_ONE_PIN, HIGH);
