@@ -11,7 +11,7 @@
 
 
 // CONSTANTS
-const int POWER_ON_TIME = millis();
+//const int POWER_ON_TIME = millis();
 
 const int LEVEL_SENSOR_MAX_DIST = 100;
 
@@ -60,7 +60,7 @@ const int VALVE_TWO_PIN   = 33; //Fills the reactor
 const int VALVE_THREE_PIN = 35; //Drain for the Reactor
 const int VALVE_FOUR_PIN  = 37; //Drain from Reactor to the W/D
 const int VALVE_FIVE_PIN  = 39; //Drain Waster from W/D (Color Sensor)
-const int VALVE_SIX_PIN   = -1; //TBH
+const int VALVE_SIX_PIN   = -1; //TBD
 const int VALVE_SEVEN_PIN = 43; //Feeds methoxide from carboy to Reactor
 const int VALVE_EIGHT_PIN = 45; //Feeds water from carboy to mister ontop of W/D
 
@@ -182,7 +182,7 @@ void setup ()
 }
 //This function only moves machine to different states
 void updateStateMachine() {
-
+Serial.print("entered updateStateMachine");
   switch (STATE) {
   case STANDBY :
     if (jumptostep){
@@ -214,12 +214,12 @@ void loop ()
 {
   char key = keypad.getKey();
   updateStateMachine();
-  
+
   switch (STATE) {
   case STANDBY :
     break;
   case TRANSFERTOREACTOR:         // TODO: Add other step states
-    TransferToReactor();    
+    DryOil();//alter later
     break;
   case HEATREACTOR:
     HeatReactor();
@@ -234,7 +234,7 @@ void loop ()
     BDSeperation();
     break;
   case ERRORCHK:
-    //need to 
+    //need to
     break;
   case STOP:
     break;
@@ -249,16 +249,18 @@ void loop ()
   }
 }
 int getStepState() { // TODO: handle case error case of more than two inputs and auto
+ Serial.print("entered getStateStep");
   int step;
   if (input_idx == 3)
     step = (input[0] - '0') * 10 + input[1] - '0';// this line could fuck us for mulitiple steps
   else
-    step = (input[0] - '0');//also janky af, might need another way to change char to int. 
+    step = (input[0] - '0');//also janky af, might need another way to change char to int.
 
   return step;
 }
 void keypadEvent (KeypadEvent key)// could be char key
 {
+  Serial.print("entered KepadEvent");
   switch (keypad.getState()) {
   case RELEASED:
     // auto mode doesn't take inputs
@@ -333,12 +335,15 @@ void keypadEvent (KeypadEvent key)// could be char key
         // turn on/off pin// shutdown everything?
         else if (operation_mode == 2) {
           jumptostep = true;
+          Serial.print("jumptostep is true");
         }
       }
-      else{
+      else if(input_idx == 0){
         lcd.print("Yo enter a number");
         input_idx = 0;
-        
+      }
+      else{
+        lcd.print("too many numbers entered");
       }
     }
     input_idx++;
@@ -358,6 +363,7 @@ void keypadEvent (KeypadEvent key)// could be char key
     {
       // switch to jump to step mode
       operation_mode = 2;
+      Serial.print("entered the jump mode");
     }
 
     input_idx = 0;
@@ -401,6 +407,17 @@ void getColor ()
 }
 
 
+void DryOil(){
+  // turn on hearting element of washer dryer
+  // once at 30C turn on pump to circulate
+  digitalWrite(RELAY_ONE_PIN,HIGH);//turn on the heating element for the washer/dryer.
+  while(getTemp(1) > 30){
+    //turn on pump
+    digitalWrite(RELAY_ONE_PIN, HIGH);
+    delay(9000);
+    digitalWrite(RELAY_ONE_PIN,LOW);
+  }
+}
 //Transfer WVO to reactor step:7
 void TransferToReactor()
 {
@@ -417,7 +434,7 @@ void TransferToReactor()
 //STEP EIGHT IN PSEUDOCODE DOC
 void HeatReactor()
 {
-  
+
   digitalWrite(RELAY_FOUR_PIN, HIGH);
 
   if (getTemp(1) >= 50) { //Move to step 3 once temp is 50c
@@ -428,7 +445,7 @@ void HeatReactor()
 
 void Reaction()
 {
-  
+
   digitalWrite(VALVE_THREE_PIN, HIGH);
   digitalWrite(RELAY_ONE_PIN, HIGH);
   digitalWrite(VALVE_TWO_PIN, HIGH);
@@ -485,4 +502,3 @@ void DryBD()
   //time
   digitalWrite(RELAY_TWO_PIN, LOW);
 }
-
