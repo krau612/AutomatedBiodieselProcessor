@@ -260,13 +260,12 @@ void keypadEvent (KeypadEvent key)// could be char key
   Serial.println("entered KeypadEvent ");
   Serial.print("operation: ");
   Serial.println(operation_mode);
-  
-  
+
   switch (keypad.getState()) {
 
   case IDLE:
     Serial.println("IDLE");
-    break;  
+    break;
 
   case PRESSED:
     if(!isPressed){
@@ -361,7 +360,7 @@ void keypadEvent (KeypadEvent key)// could be char key
 
   case RELEASED:
     isPressed = false;
-    Serial.println("Key Released");  
+    Serial.println("Key Released");
     break;
 
   case HOLD:
