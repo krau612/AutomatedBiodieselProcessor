@@ -59,7 +59,7 @@ const int VALVE_TWO_PIN   = 33; //Fills the reactor
 const int VALVE_THREE_PIN = 35; //Drain for the Reactor
 const int VALVE_FOUR_PIN  = 37; //Drain from Reactor to the W/D
 const int VALVE_FIVE_PIN  = 39; //Drain Waster from W/D (Color Sensor)
-const int VALVE_SIX_PIN   = -1; //TBD
+const int VALVE_SIX_PIN   = 41; //TBD
 const int VALVE_SEVEN_PIN = 43; //Feeds methoxide from carboy to Reactor
 const int VALVE_EIGHT_PIN = 45; //Feeds water from carboy to mister ontop of W/D
 
@@ -117,7 +117,7 @@ int current_step = 0;
 // 1: override mode
 // 2: jump to step
 int operation_mode = 0;
-
+boolean isPressed = false;
 
 
 // =1 if the default lcd display
@@ -168,11 +168,17 @@ void setup ()
 
   // Add interrupt to keypad
   keypad.addEventListener(keypadEvent);
-
+  keypad.setHoldTime(1500);
   // Start Temperature Sensors
   temp_sensor_one.begin();
   temp_sensor_two.begin();
 
+   // Set all relay pins to high
+  for (int i=31; i <= 45;){
+    digitalWrite(i,HIGH);
+    i = i + 2;
+   } 
+   
   // Start Level Sensors
   //level_sensor_one.begin();
   //level_sensor_two.begin();
@@ -181,7 +187,7 @@ void setup ()
 }
 //This function only moves machine to different states
 void updateStateMachine() {
-//Serial.print("entered updateStateMachine");
+  //Serial.println("entered updateStateMachine");
   switch (STATE) {
   case STANDBY :
     if (jumptostep){
@@ -208,6 +214,7 @@ void loop ()
   case STANDBY :
     break;
   case TRANSFERTOREACTOR:         // TODO: Add other step states
+    Serial.println("step 1 is bieng run");
     DryOil();//alter later
     break;
   case HEATREACTOR:
@@ -238,107 +245,128 @@ void loop ()
   }
 }
 int getStepState() { // TODO: handle case error case of more than two inputs and auto
- Serial.print("entered getStateStep");
+  Serial.println("entered getStateStep");
   int step;
   if (input_idx == 3)
     step = (input[0] - '0') * 10 + input[1] - '0';// this line could fuck us for mulitiple steps
   else
     step = (input[0] - '0');//also janky af, might need another way to change char to int.
-
+  Serial.println("the current step is: " + step);
   return step;
 }
 void keypadEvent (KeypadEvent key)// could be char key
 {
-  Serial.print("entered KepadEvent");
+  //noInterrupts();
+  Serial.println("entered KeypadEvent ");
+  Serial.print("operation: ");
+  Serial.println(operation_mode);
+  
+  
   switch (keypad.getState()) {
-  case RELEASED:
-    // auto mode doesn't take inputs
-    if (operation_mode == 0)
-      break;
 
-    lcd_interrupt = 1;
-    lcd.clear();
-    lcd.home();
+  case IDLE:
+    Serial.println("IDLE");
+    break;  
 
-    if (operation_mode == 1)
-    {
-      lcd.print("Choose a Pin. Press # when done.");
-      lcd.setCursor(0, 2);
-    }
-    else if (operation_mode == 2)
-    {
-      lcd.print("Choose a Step. Press # when done.");
-      lcd.setCursor(0, 2);
-    }
+  case PRESSED:
+    if(!isPressed){
+      if (operation_mode == 0){
+    break;
+  }
 
-    Serial.print("the key is " + key);
+  lcd_interrupt = 1;
+  lcd.clear();
+  lcd.home();
 
-    if (key == '1')
-      input[input_idx] = '1';
+  if (operation_mode == 1)
+  {
+    lcd.print("Choose a Pin. Press # when done.");
+    lcd.setCursor(0, 2);
+  }
+  else if (operation_mode == 2)
+  {
+    lcd.print("Choose a Step. Press # when done.");
+    lcd.setCursor(0, 2);
+  }
+      Serial.print("The Key Pressed: ");
+      Serial.println(key);
 
-    else if (key == '2')
-      input[input_idx] = '2';
+      if (key == '1')
+        input[input_idx] = '1';
 
-    else if (key == '3')
-      input[input_idx] = '3';
+      else if (key == '2')
+        input[input_idx] = '2';
 
-    else if (key == '4')
-      input[input_idx] = '4';
+      else if (key == '3')
+        input[input_idx] = '3';
 
-    else if (key == '5')
-      input[input_idx] = '5';
+      else if (key == '4')
+        input[input_idx] = '4';
 
-    else if (key == '6')
-      input[input_idx] = '6';
+      else if (key == '5')
+        input[input_idx] = '5';
 
-    else if (key == '7')
-      input[input_idx] = '7';
+      else if (key == '6')
+        input[input_idx] = '6';
 
-    else if (key == '8')
-      input[input_idx] = '8';
+      else if (key == '7')
+        input[input_idx] = '7';
 
-    else if (key == '9')
-      input[input_idx] = '9';
+      else if (key == '8')
+        input[input_idx] = '8';
 
-    else if (key == '0')
-      input[input_idx] = '0';
+      else if (key == '9')
+        input[input_idx] = '9';
 
-    else if (key == 'A')
-      input[input_idx] = 'A';
+      else if (key == '0')
+        input[input_idx] = '0';
 
-    else if (key == 'B')
-      input[input_idx] = 'B';
+      else if (key == 'A')
+        input[input_idx] = 'A';
 
-    else if (key == 'C')
-      input[input_idx] = 'C';
+      else if (key == 'B')
+        input[input_idx] = 'B';
 
-    else if (key == 'D')
-      input[input_idx] = 'D';
+      else if (key == 'C')
+        input[input_idx] = 'C';
 
-    else if (key == '*')
-      input[input_idx] = '*';
+      else if (key == 'D')
+        input[input_idx] = 'D';
 
-    else if (key == '#'){
-      if (input_idx == 1)
-      {
-        if (operation_mode == 1){}
-        // turn on/off pin// shutdown everything?
-        else if (operation_mode == 2) {
-          jumptostep = true;
-          Serial.print("jumptostep is true");
+      else if (key == '*')
+        input[input_idx] = '*';
+
+      else if (key == '#'){
+        if (input_idx == 1)
+        {
+          if (operation_mode == 1){
+          }
+          // turn on/off pin// shutdown everything?
+          else if (operation_mode == 2) {
+            jumptostep = true;
+            Serial.println("jumptostep is true");
+          }
+        }
+        else if(input_idx == 0){
+          lcd.print("Yo enter a number");
+        }
+        else{
+          lcd.print("too many numbers entered");
         }
       }
-      else if(input_idx == 0){
-        lcd.print("Yo enter a number");
-        keypadEvent (KeypadEvent key)
-      }
-      else{
-        lcd.print("too many numbers entered");
-      }
+      input_idx++;
+      isPressed = true;
     }
-    input_idx++;
     break;
+
+  case RELEASED:
+    isPressed = false;
+    Serial.println("Key Released");  
+    break;
+
   case HOLD:
+    Serial.print("The Key Held: ");
+    Serial.println(key);
     if (key == 'A')
     {
       // switch to auto mode
@@ -353,12 +381,13 @@ void keypadEvent (KeypadEvent key)// could be char key
     {
       // switch to jump to step mode
       operation_mode = 2;
-      Serial.print("entered the jump mode");
+      Serial.println("entered the jump mode");
     }
 
     input_idx = 0;
     break;
   }
+  //interrupts();
 }
 
 int getTemp (int sensor)
@@ -404,8 +433,8 @@ void DryOil(){
   while(getTemp(1) < 30){
     lcd.print(getTemp(1));
   }
-    lcd.clear();
-    lcd.home();
+  lcd.clear();
+  lcd.home();
   while(getTemp(1) > 30){
     //turn on pump
     digitalWrite(RELAY_ONE_PIN, HIGH);
@@ -417,13 +446,13 @@ void DryOil(){
 void TransferToReactor()
 {
   current_step = 1;
-  digitalWrite(VALVE_THREE_PIN, LOW);
-  digitalWrite(VALVE_ONE_PIN, HIGH);
-  digitalWrite(VALVE_SEVEN_PIN, HIGH);
+  digitalWrite(VALVE_THREE_PIN, HIGH);
+  digitalWrite(VALVE_ONE_PIN, LOW);
+  digitalWrite(VALVE_SEVEN_PIN, LOW);
   digitalWrite(RELAY_TWO_PIN, HIGH);
   //decide how long the pump needs to be run, either delay or level sensor
   digitalWrite(RELAY_TWO_PIN, LOW);
-  digitalWrite(VALVE_ONE_PIN, LOW);
+  digitalWrite(VALVE_ONE_PIN, HIGH);
 }
 
 //STEP EIGHT IN PSEUDOCODE DOC
@@ -441,21 +470,21 @@ void HeatReactor()
 void Reaction()
 {
 
-  digitalWrite(VALVE_THREE_PIN, HIGH);
+  digitalWrite(VALVE_THREE_PIN, LOW);
   digitalWrite(RELAY_ONE_PIN, HIGH);
-  digitalWrite(VALVE_TWO_PIN, HIGH);
+  digitalWrite(VALVE_TWO_PIN, LOW);
 
   //need a delay to mix the methoxide and wvo
 
   digitalWrite(RELAY_ONE_PIN, LOW);
-  digitalWrite(VALVE_THREE_PIN, LOW);
+  digitalWrite(VALVE_THREE_PIN, HIGH);
 }
 
 //Pseudoecode step:10
 void TransferToWD()
 {
-  digitalWrite(VALVE_TWO_PIN, LOW);
-  digitalWrite(VALVE_FOUR_PIN, HIGH);
+  digitalWrite(VALVE_TWO_PIN, HIGH);
+  digitalWrite(VALVE_FOUR_PIN, LOW);
   digitalWrite(RELAY_ONE_PIN, HIGH);
   //need to decide how to leave pump on untill all of the liquid from the reactor has been pumped out
   digitalWrite(RELAY_ONE_PIN, LOW);
@@ -464,30 +493,30 @@ void TransferToWD()
 //Pseudocode step 11
 void BDSeperation()
 {
-  digitalWrite(VALVE_FIVE_PIN, HIGH);
-  //drian Glycerol untill the light sesor detects biodeisel.
   digitalWrite(VALVE_FIVE_PIN, LOW);
+  //drain Glycerol until the light sesor detects biodeisel.
+  digitalWrite(VALVE_FIVE_PIN, HIGH);
 }
 
 //pseudocode step 12,13, & 14
 void WashBD()
 {
   digitalWrite(RELAY_THREE_PIN, HIGH);
-  digitalWrite(VALVE_SIX_PIN, HIGH);
-  digitalWrite(VALVE_EIGHT_PIN, HIGH); //feed misters
+  digitalWrite(VALVE_SIX_PIN, LOW);
+  digitalWrite(VALVE_EIGHT_PIN, LOW); //feed misters
   //TURN ON BUBBLER
   //STOP WATER WHEN ENOUGH IS ADDED
-  digitalWrite(VALVE_SIX_PIN, LOW);
-  digitalWrite(VALVE_EIGHT_PIN, LOW); //close misters
+  digitalWrite(VALVE_SIX_PIN, HIGH);
+  digitalWrite(VALVE_EIGHT_PIN, HIGH); //close misters
   //WAIT FOR IT TO SETTLE
 
 }
 //Pseudocode step 15
 void WaterSeperation()
 {
-  digitalWrite(VALVE_FIVE_PIN, HIGH);
-  //drian WATER untill the light sesor detects biodeisel.
   digitalWrite(VALVE_FIVE_PIN, LOW);
+  //drian WATER untill the light sesor detects biodeisel.
+  digitalWrite(VALVE_FIVE_PIN, HIGH);
 }
 
 //DRY BD STEP 16
@@ -497,3 +526,5 @@ void DryBD()
   //time
   digitalWrite(RELAY_TWO_PIN, LOW);
 }
+
+
