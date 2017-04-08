@@ -1,3 +1,5 @@
+
+
 // LIBRARY IMPORTS
 #include "Adafruit_TCS34725.h"
 #include <DallasTemperature.h>
@@ -7,6 +9,8 @@
 #include <NewPing.h>
 #include <OneWire.h>
 #include <Wire.h>
+#include <Time.h>
+#include <TimeLib.h>
 // END LIBRARY IMPORTS
 
 
@@ -138,6 +142,8 @@ int input_idx = 0;
 // if true update statemachine
 boolean jumptostep = false;
 
+int currHour = hour();
+
 // END GLOBAL VARIABLES
 
 
@@ -215,7 +221,8 @@ void loop ()
     break;
   case TRANSFERTOREACTOR:         // TODO: Add other step states
     Serial.println("step 1 is bieng run");
-    DryOil();//alter later
+    DryOil();
+    STATE = STANDBY;
     break;
   case HEATREACTOR:
     HeatReactor();
@@ -426,20 +433,32 @@ void getColor ()
 
 
 void DryOil(){
+  Serial.println("Entered DryOil");
   // turn on hearting element of washer dryer
   // once at 30C turn on pump to circulate
-  digitalWrite(RELAY_ONE_PIN,HIGH);//turn on the heating element for the washer/dryer.
-  while(getTemp(1) < 30){
+  digitalWrite(RELAY_THREE_PIN,HIGH);//turn on the heating element for the washer/dryer.
+  while(getTemp(1) < 10){
     lcd.print(getTemp(1));
   }
   lcd.clear();
   lcd.home();
-  while(getTemp(1) > 30){
+  currHour = minute();
+  int doneTime = (currHour + 1) % 59;
+  
+  while(minute() != doneTime){
     //turn on pump
-    digitalWrite(RELAY_ONE_PIN, HIGH);
-    delay(9000);
-    digitalWrite(RELAY_ONE_PIN,LOW);
+    digitalWrite(RELAY_ONE_PIN, HIGH);//pump
+    Serial.print("the miunte is: ");
+    Serial.println(currHour);
+    Serial.print("the Done miunte is: ");
+    Serial.println(doneTime);
+    lcd.print(getTemp(1));
+    //error checks here
   }
+  Serial.print("the while loop is done");
+  digitalWrite(RELAY_ONE_PIN,LOW);
+  //TODO: turn off heating element
+  //digitalWrite(RELAY_THREE_PIN,LOW);
 }
 //Transfer WVO to reactor step:7
 void TransferToReactor()
