@@ -1,5 +1,3 @@
-
-
 // LIBRARY IMPORTS
 #include "Adafruit_TCS34725.h"
 #include <DallasTemperature.h>
@@ -113,7 +111,7 @@ const int DRYBD = 8;
 
 
 //--------------------------
-const int ERRORCHK = -1;
+const int WAIT = 10;
 const int STOP = 9;
 
 int current_step = 0;
@@ -215,14 +213,43 @@ void loop ()
   }
 
   updateStateMachine();
-
+  int doneTime = 0;
   switch (STATE) {
-  case STANDBY :
+  case STANDBY:
     break;
+  case WAIT:
+    // 16 hour loop while circulating.
+    //loop();
+    //errorChecks();
+    //
+    Serial.print("Entered the WAIT stage");
+    currHour = minute();
+    doneTime = (currHour + 1) % 59;
+  
+    while(minute() != doneTime){
+      //turn on pump
+      digitalWrite(RELAY_ONE_PIN, HIGH);//pump
+      Serial.print("the miunte is: ");
+      Serial.println(currHour);
+      Serial.print("the Done miunte is: ");
+      Serial.println(doneTime);
+      lcd.print("The Temp: ");
+      lcd.print(getTemp(1));
+      lcd.clear();
+      lcd.home();
+      //error checks here
+    }
+    Serial.print("the while loop is done");
+    digitalWrite(RELAY_ONE_PIN,LOW);
+    //TODO: turn off heating element
+    //digitalWrite(RELAY_THREE_PIN,LOW);
+    STATE = STANDBY;
+    break;
+    
   case TRANSFERTOREACTOR:         // TODO: Add other step states
     Serial.println("step 1 is bieng run");
     DryOil();
-    STATE = STANDBY;
+    STATE = WAIT;
     break;
   case HEATREACTOR:
     HeatReactor();
@@ -236,20 +263,20 @@ void loop ()
   case  BDSEPERATION:
     BDSeperation();
     break;
-  case ERRORCHK:
-    //need to
-    break;
+    
   case STOP:
     break;
   default:
     break;
   }
+  
   if (lcd_interrupt == 0)
   {
     lcd.clear();
     lcd.home();
     lcd.print("Default Stuff");
   }
+  
 }
 int getStepState() { // TODO: handle case error case of more than two inputs and auto
   Serial.println("entered getStateStep");
@@ -422,6 +449,7 @@ void getLevel ()
   int level_two = uS_two / US_ROUNDTRIP_CM;
 }
 
+
 void getColor ()
 {
   uint16_t r, g, b, c, color_temp, lux;
@@ -437,28 +465,13 @@ void DryOil(){
   // turn on hearting element of washer dryer
   // once at 30C turn on pump to circulate
   digitalWrite(RELAY_THREE_PIN,HIGH);//turn on the heating element for the washer/dryer.
-  while(getTemp(1) < 10){
+  //CHANGE TO 30
+  /*while(getTemp(1) < 10){
     lcd.print(getTemp(1));
-  }
-  lcd.clear();
-  lcd.home();
-  currHour = minute();
-  int doneTime = (currHour + 1) % 59;
-  
-  while(minute() != doneTime){
-    //turn on pump
-    digitalWrite(RELAY_ONE_PIN, HIGH);//pump
-    Serial.print("the miunte is: ");
-    Serial.println(currHour);
-    Serial.print("the Done miunte is: ");
-    Serial.println(doneTime);
-    lcd.print(getTemp(1));
-    //error checks here
-  }
-  Serial.print("the while loop is done");
-  digitalWrite(RELAY_ONE_PIN,LOW);
-  //TODO: turn off heating element
-  //digitalWrite(RELAY_THREE_PIN,LOW);
+  }*/
+  //lcd.clear();
+  //lcd.home();
+  Serial.println("end of DryOil");
 }
 //Transfer WVO to reactor step:7
 void TransferToReactor()
