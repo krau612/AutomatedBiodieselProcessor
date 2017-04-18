@@ -111,8 +111,9 @@ const int DRYBD = 8;
 
 
 //--------------------------
-const int WAIT = 10;
+
 const int STOP = 9;
+const int WAITDRYOIL = 10;
 
 int current_step = 0;
 // 0: auto mode
@@ -182,12 +183,7 @@ void setup ()
     digitalWrite(i,HIGH);
     i = i + 2;
    } 
-   
-  // Start Level Sensors
-  //level_sensor_one.begin();
-  //level_sensor_two.begin();
-  //begin is not a method in ping library, for avalible methods check http://playground.arduino.cc/Code/NewPing
-
+  
 }
 //This function only moves machine to different states
 void updateStateMachine() {
@@ -217,21 +213,26 @@ void loop ()
   switch (STATE) {
   case STANDBY:
     break;
-  case WAIT:
+  case TRANSFERTOREACTOR:         // TODO: Add other step states
+    Serial.println("step 1 is being run");
+    DryOil();
+    STATE = WAITDRYOIL;
+    break;
+ case WAITDRYOIL:
     // 16 hour loop while circulating.
     //loop();
     //errorChecks();
     //
-    Serial.print("Entered the WAIT stage");
+    Serial.print("Waiting for oil to dry");
     currHour = minute();
     doneTime = (currHour + 1) % 59;
   
     while(minute() != doneTime){
       //turn on pump
       digitalWrite(RELAY_ONE_PIN, HIGH);//pump
-      Serial.print("the miunte is: ");
+      Serial.print("the minute is: ");
       Serial.println(currHour);
-      Serial.print("the Done miunte is: ");
+      Serial.print("Finish by: ");
       Serial.println(doneTime);
       lcd.print("The Temp: ");
       lcd.print(getTemp(1));
@@ -241,18 +242,13 @@ void loop ()
     }
     Serial.print("the while loop is done");
     digitalWrite(RELAY_ONE_PIN,LOW);
-    //TODO: turn off heating element
-    //digitalWrite(RELAY_THREE_PIN,LOW);
+    //turn off heating element
+    digitalWrite(RELAY_THREE_PIN,LOW);
     STATE = STANDBY;
-    break;
-    
-  case TRANSFERTOREACTOR:         // TODO: Add other step states
-    Serial.println("step 1 is bieng run");
-    DryOil();
-    STATE = WAIT;
     break;
   case HEATREACTOR:
     HeatReactor();
+    STATE = STANDBY;
     break;
   case REACTION:
     Reaction();
@@ -476,7 +472,7 @@ void DryOil(){
 //Transfer WVO to reactor step:7
 void TransferToReactor()
 {
-  current_step = 1;
+  Serial.println("Transfer oil to reactor");
   digitalWrite(VALVE_THREE_PIN, HIGH);
   digitalWrite(VALVE_ONE_PIN, LOW);
   digitalWrite(VALVE_SEVEN_PIN, LOW);
@@ -484,6 +480,8 @@ void TransferToReactor()
   //decide how long the pump needs to be run, either delay or level sensor
   digitalWrite(RELAY_TWO_PIN, LOW);
   digitalWrite(VALVE_ONE_PIN, HIGH);
+  Serial.println("end of transfer");
+  
 }
 
 //STEP EIGHT IN PSEUDOCODE DOC
